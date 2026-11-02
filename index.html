@@ -157,6 +157,15 @@
         leitor.readAsText(arquivo);
     }
     </script>
+        <!-- Ativador do Service Worker para o modo Offline -->
+    <script>
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('./sw.js')
+            .then(() => console.log('Modo Offline Ativado!'))
+            .catch((err) => console.log('Erro no sw:', err));
+    }
+    </script>
+
 </body>
 </html>
 
