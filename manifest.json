@@ -1,0 +1,10 @@
+{
+  "name": "Dashboard Amazfit Bip Max",
+  "short_name": "Meu Treino",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#fafafa",
+  "theme_color": "#d35400",
+  "orientation": "portrait"
+}
+

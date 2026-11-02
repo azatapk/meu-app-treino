@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meu Dashboard de Treinos</title>
+    <!-- Vincula o manifesto para habilitar a instalação no Android -->
+    <link rel="manifest" href="manifest.json">
+</head>
+<body style="padding: 20px; font-family: sans-serif; background: #fafafa; color: #333; max-width: 600px; margin: 0 auto;">
+
+    <h1 style="font-size: 24px; text-align: center;">Painel de Treinos Mobile</h1>
+    <p style="text-align: center; color: #666;">Selecione o arquivo GPX do seu Zepp:</p>
+    
+    <div style="background: white; padding: 20px; border-radius: 8px; border: 1px solid #ddd; text-align: center;">
+        <input type="file" id="arquivoGpx" accept=".gpx" style="margin-bottom: 15px; width: 100%;">
+        <br>
+        <button onclick="analisarTreinoLocal()" style="padding: 10px 20px; background: #d35400; color: white; border: none; border-radius: 4px; font-weight: bold; width: 100%; cursor: pointer;">Analisar Treino no Celular</button>
+    </div>
+
+    <div id="resultado" style="margin-top: 20px; display: flex; flex-direction: column; gap: 10px;">
+        <p style="margin:0; color:#27ae60; font-weight: bold; text-align: center;" id="msgStatus"></p>
+        <div style="display: flex; justify-content: space-around; background: white; padding: 15px; border-radius: 8px; border: 1px solid #ddd;">
+            <div style="text-align: center;"><small style="color:#777;">Média</small><br><strong id="medHR" style="font-size: 18px; color: #e74c3c;">-</strong></div>
+            <div style="text-align: center;"><small style="color:#777;">Máximo</small><br><strong id="maxHR" style="font-size: 18px; color: #c0392b;">-</strong></div>
+            <div style="text-align: center;"><small style="color:#777;">Calorias</small><br><strong id="calorias" style="font-size: 18px; color: #d35400;">-</strong></div>
+        </div>
+    </div>
+
+    <h3 style="font-size: 16px; margin-top: 20px;">Evolução do Treino (Tempo x Esforço):</h3>
+    <div id="listaBatimentos" style="max-height: 350px; overflow-y: auto; background: white; padding: 15px; border: 1px solid #ddd; border-radius: 8px;">
+        <p style="color: #777; text-align: center; font-size: 14px;">Os dados de evolução aparecerão aqui...</p>
+    </div>
+
+    <script>
+    function analisarTreinoLocal() {
+        const input = document.getElementById('arquivoGpx');
+        if (!input.files || input.files.length === 0) {
+            alert('Por favor, selecione um arquivo GPX primeiro.');
+            return;
+        }
+
+        const arquivo = input.files[0];
+        const leitor = new FileReader();
+
+        // O próprio celular lê o arquivo de texto bruto sem precisar de internet
+        leitor.onload = function(e) {
+            const gpxRaw = e.target.result;
+
+            // 1. Extração de calorias totais registradas pela Amazfit
+            const regexCalorias = /<(?:ns3:|gpxtpx:)?(calories|kcal|Calories)>(\d+(?:\.\d+)?)<\/(?:ns3:|gpxtpx:)?(calories|kcal|Calories)>/i;
+            const matchCalorias = regexCalorias.exec(gpxRaw);
+            let caloriasTotais = 0;
+            if (matchCalorias && matchCalorias[2]) {
+                caloriasTotais = Math.round(parseFloat(matchCalorias[2]));
+            } else {
+                const regexCaloriasAlt = /<Calories>(\d+)<\/Calories>/i.exec(gpxRaw);
+                if (regexCaloriasAlt) caloriasTotais = parseInt(regexCaloriasAlt[1]);
+            }
+
+            // 2. Extração dos pontos de batimentos e marcas temporais
+            const regexPonto = /<trkpt[\s\S]*?>([\s\S]*?)<\/trkpt>/g;
+            let pontosValidos = [];
+            let batimentos = [];
+            let matchPonto;
+            let tempoInicio = null;
+
+            while ((matchPonto = regexPonto.exec(gpxRaw)) !== null) {
+                const blocoPonto = matchPonto[1];
+                const matchHr = /<(?:ns3:|gpxtpx:)?hr>(\d+)<\/(?:ns3:|gpxtpx:)?hr>/.exec(blocoPonto);
+                const matchTime = /<time>([\s\S]*?)<\/time>/.exec(blocoPonto);
+
+                if (matchHr && matchTime) {
+                    const bpm = parseInt(matchHr[1]);
+                    const horarioReal = new Date(matchTime[1]);
+
+                    if (!isNaN(horarioReal.getTime())) {
+                        if (!tempoInicio) tempoInicio = horarioReal;
+                        batimentos.push(bpm);
+                        pontosValidos.push({ bpm, horarioReal });
+                    }
+                }
+            }
+
+            if (pontosValidos.length === 0) {
+                alert('Nenhum registro cardíaco válido encontrado neste arquivo GPX.');
+                return;
+            }
+
+            if (caloriasTotais === 0) {
+                const minutos = Math.max(1, (pontosValidos[pontosValidos.length - 1].horarioReal - tempoInicio) / 60000);
+                caloriasTotais = Math.round(minutos * 7.5);
+            }
+
+            // 3. Cálculo biológico exponencial da curva de esforço
+            let somaFatoresEsforco = 0;
+            const pontosComEsforco = pontosValidos.map(p => {
+                const fatorEsforco = Math.pow(p.bpm / 100, 3.5);
+                somaFatoresEsforco += fatorEsforco;
+                return { ...p, fatorEsforco };
+            });
+
+            const listaDiv = document.getElementById('listaBatimentos');
+            listaDiv.innerHTML = ''; 
+
+            let caloriasAcumuladas = 0;
+
+            pontosComEsforco.forEach(p => {
+                const diferencaMilissegundos = p.horarioReal - tempoInicio;
+                const minutosPassados = Math.floor(diferencaMilissegundos / 60000);
+                const segundosRestantes = Math.floor((diferencaMilissegundos % 60000) / 1000).toString().padStart(2, '0');
+                const tempoFormatado = `${minutosPassados}:${segundosRestantes}`;
+
+                const parcelaCaloria = (p.fatorEsforco / somaFatoresEsforco) * caloriasTotais;
+                caloriasAcumuladas += parcelaCaloria;
+
+                const item = document.createElement('div');
+                item.style.borderBottom = '1px solid #eee';
+                item.style.padding = '8px 0';
+
+                const larguraBpm = Math.min((p.bpm / 200) * 100, 100);
+                const larguraCal = Math.min((caloriasAcumuladas / caloriasTotais) * 100, 100);
+
+                let corBpm = '#2ecc71'; 
+                if (p.bpm > 140) corBpm = '#f1c40f'; 
+                if (p.bpm > 165) corBpm = '#e74c3c'; 
+
+                const horaFormatada = p.horarioReal.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+                item.innerHTML = `
+                    <div style="font-size: 11px; color: #666; font-weight: bold; margin-bottom: 2px;">⏱️ Tempo: ${tempoFormatado} <span style="font-weight:normal; color:#999;">(${horaFormatada})</span></div>
+                    <div style="display: flex; align-items: center; margin-bottom: 2px;">
+                        <span style="width: 70px; font-size: 11px; color: #555;">💓 Coração:</span>
+                        <strong style="width: 65px; font-size: 12px;">${p.bpm} BPM</strong>
+                        <div style="background: ${corBpm}; height: 6px; width: ${larguraBpm}%; border-radius: 2px;"></div>
+                    </div>
+                    <div style="display: flex; align-items: center;">
+                        <span style="width: 70px; font-size: 11px; color: #555;">🔥 Energia:</span>
+                        <strong style="width: 65px; font-size: 12px; color: #d35400;">${caloriasAcumuladas.toFixed(1)} kcal</strong>
+                        <div style="background: #e67e22; height: 6px; width: ${larguraCal}%; border-radius: 2px;"></div>
+                    </div>
+                `;
+                listaDiv.appendChild(item);
+            });
+
+            // Exibe as métricas consolidadas finais
+            const maxHR = Math.max(...batimentos);
+            const minHR = Math.min(...batimentos);
+            const mediaHR = Math.round(batimentos.reduce((a, b) => a + b, 0) / batimentos.length);
+
+            document.getElementById('medHR').innerText = mediaHR + ' bpm';
+            document.getElementById('maxHR').innerText = maxHR + ' bpm';
+            document.getElementById('calorias').innerText = caloriasTotais + ' kcal';
+            document.getElementById('msgStatus').innerText = "Análise concluída pelo processador do celular!";
+        };
+
+        leitor.readAsText(arquivo);
+    }
+    </script>
+</body>
+</html>
+
