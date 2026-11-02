@@ -20,6 +20,22 @@
       "type": "image/svg+xml",
       "purpose": "any maskable"
     }
+  ],
+  "screenshots": [
+    {
+      "src": "data:image/svg+xml;utf8,<svg xmlns='http://w3.org' viewBox='0 0 320 568' width='320' height='568'><rect width='320' height='568' fill='%23fafafa'/><text x='50%23' y='50%23' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='16' fill='%23666'>Tela do Aplicativo</text></svg>",
+      "sizes": "320x568",
+      "type": "image/svg+xml",
+      "form_factor": "narrow",
+      "label": "Tela Principal Mobile"
+    },
+    {
+      "src": "data:image/svg+xml;utf8,<svg xmlns='http://w3.org' viewBox='0 0 1024 768' width='1024' height='768'><rect width='1024' height='768' fill='%23fafafa'/><text x='50%23' y='50%23' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='24' fill='%23666'>Tela do Aplicativo Tablet</text></svg>",
+      "sizes": "1024x768",
+      "type": "image/svg+xml",
+      "form_factor": "wide",
+      "label": "Tela Principal Tablet"
+    }
   ]
 }
 
